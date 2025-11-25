@@ -19,7 +19,7 @@ BASE_DIR = pathlib.Path(__file__).resolve().parents[1]
 MASTER_PROMPT_PATH = BASE_DIR / "pack" / "MASTER_PROMPT_v2-rev_20250915.txt"
 
 # モデル名（必要に応じて変更）
-DEFAULT_MODEL = "gpt-5.1-mini"
+DEFAULT_MODEL = "gpt-5.1"
 
 client = OpenAI()
 
