@@ -62,45 +62,49 @@ def find_course_blocks(lines: List[str]) -> List[Dict[str, Any]]:
         "lines": [str, ...]
     }
 
-    前提:
-    - コースNo は「コースNo: XXX」「Course: XXX」にマッチ
-    - 期間は YYYY-MM-DD〜YYYY-MM-DD にマッチ
+    ポイント:
+    - 「コースNo が検出されていないブロック」は blocks に追加しない。
+      → 冒頭のヘッダだけの BLOCK-1 などを作らない。
     """
     blocks: List[Dict[str, Any]] = []
-    cur = {
+
+    # 現在構築中のブロック
+    cur: Dict[str, Any] = {
         "courseNo": "",
         "period": {"start": "", "end": ""},
-        "lines": []
+        "lines": [],
     }
 
     for ln in lines:
         # コース No 検出
         m_course = re.search(r"(コースNo|Course)[:：]?\s*([A-Za-z0-9\-]+)", ln)
         if m_course:
-            # 既存ブロックがあれば確定
-            if cur["lines"]:
+            # 直前のブロックに courseNo が入っていれば、1コースとして確定させる
+            if cur["courseNo"]:
                 blocks.append(cur)
-                cur = {
-                    "courseNo": "",
-                    "period": {"start": "", "end": ""},
-                    "lines": []
-                }
 
-            cur["courseNo"] = m_course.group(2)
-
-        # 期間検出（先に出てきてもよい）
-        m_period = re.search(r"(\d{4}-\d{2}-\d{2}).*?(\d{4}-\d{2}-\d{2})", ln)
-        if m_period:
-            cur["period"] = {
-                "start": m_period.group(1),
-                "end": m_period.group(2)
+            # 新しいブロックを開始
+            cur = {
+                "courseNo": m_course.group(2),
+                "period": {"start": "", "end": ""},
+                "lines": [],
             }
 
-        # とりあえず全て行に保持
-        cur["lines"].append(ln)
+        # 期間検出（例: 2025-09-01〜2025-09-05）
+        m_period = re.search(r"(\d{4}-\d{2}-\d{2}).*?(\d{4}-\d{2}-\d{2})", ln)
+        if m_period and cur["courseNo"]:
+            cur["period"] = {
+                "start": m_period.group(1),
+                "end": m_period.group(2),
+            }
 
-    # 最後のブロックを確定
-    if cur["lines"]:
+        # 現在のブロックに行を追加
+        # （まだ courseNo が見つかっていないヘッダ行は捨てる）
+        if cur["courseNo"]:
+            cur["lines"].append(ln)
+
+    # ループ終了後、最後のブロックに courseNo があれば追加
+    if cur["courseNo"] and cur["lines"]:
         blocks.append(cur)
 
     return blocks
