@@ -109,7 +109,6 @@ def extract_with_llm(
                 "content": prompt,
             },
         ],
-        temperature=0.0,
         response_format={"type": "json_object"},
     )
 
