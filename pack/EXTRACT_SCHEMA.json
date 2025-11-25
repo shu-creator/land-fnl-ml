@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LAND_FNL Step1 Extract Schema (courses array, seat excluded)",
+  "type": "object",
+  "required": ["courses"],
+  "properties": {
+    "courses": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["courseNo", "period", "participants"],
+        "properties": {
+          "courseNo": { "type": "string" },
+          "period": {
+            "type": "object",
+            "required": ["start", "end"],
+            "properties": {
+              "start": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+              "end":   { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" }
+            },
+            "additionalProperties": false
+          },
+          "participants": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["no", "nameJP", "nameEN", "inquiryNo"],
+              "properties": {
+                "no": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "nameJP": { "type": "string" },
+                "nameEN": { "type": "string" },
+                "inquiryNo": { "type": "string" },
+
+                "joinType": {
+                  "type": "object",
+                  "properties": {
+                    "meet": {
+                      "type": "object",
+                      "properties": {
+                        "place":    { "type": "string" },
+                        "datetime": { "type": "string" }
+                      },
+                      "additionalProperties": false
+                    },
+                    "flight": {
+                      "type": "object",
+                      "properties": {
+                        "arrive": { "type": "string" },
+                        "depart": { "type": "string" }
+                      },
+                      "additionalProperties": false
+                    },
+                    "transfer": { "type": "string" }
+                  },
+                  "additionalProperties": false
+                },
+
+                "roomingRQ": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                },
+
+                "optionalRQ": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["name"],
+                    "properties": {
+                      "name": { "type": "string" },
+                      "date": { "type": "string" },
+                      "pax":  { "type": "integer", "minimum": 1 }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+
+                "celebration": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                },
+
+                "meal_allergy": { "type": "string" },
+                "medical":      { "type": "string" },
+
+                "airline": {
+                  "type": "object",
+                  "properties": {
+                    "meal":          { "type": "string" },
+                    "assist":        { "type": "string" },
+                    "carryOn":       { "type": "string" },
+                    "arrivalImpact": { "type": "string" }
+                  },
+                  "additionalProperties": false
+                },
+
+                "scheduleImpact": { "type": "string" },
+
+                "busSeating": { "type": "string" },
+
+                "gearSizes": {
+                  "type": "object",
+                  "properties": {
+                    "top":       { "type": "string" },
+                    "bottom":    { "type": "string" },
+                    "shoes":     { "type": "string" },
+                    "height_cm": { "type": "number" },
+                    "weight_kg": { "type": "number" }
+                  },
+                  "additionalProperties": false
+                },
+
+                "otherGroup": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["name", "inquiryNo"],
+                    "properties": {
+                      "name":      { "type": "string" },
+                      "inquiryNo": { "type": "string" },
+                      "roomType":  { "type": "string" },
+                      "status":    { "type": "string" }
+                    },
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}
