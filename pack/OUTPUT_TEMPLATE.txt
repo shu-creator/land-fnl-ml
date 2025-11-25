@@ -1,0 +1,21 @@
+ツアー情報:
+- コースNo: <courseNo> / 期間: <period.start>–<period.end>
+
+参加者（該当のみ）:
+<courseNo> No.<no> <nameJP> / <nameEN>（問番:<inquiryNo>）
+<lines for existing fields only, in the following order>
+- 参加形態: L/O（合流:<joinType.meet.place>/<joinType.meet.datetime> 送迎:<joinType.transfer> 個人便:<joinType.flight.arrive>/<joinType.flight.depart>）
+- ルーミング要望: <roomingRQ>
+- オプショナル: <optionalRQ[].name> / **RQ** / <optionalRQ[].date or 不明> / <optionalRQ[].pax>名
+- 特別依頼: <celebration>
+- 食事・アレルギー: <meal_allergy>
+- 医療・介助: <medical>
+- 航空会社関連:
+  - 機内食: <airline.meal>
+  - 搭乗支援: <airline.assist>
+  - 機内持込: <airline.carryOn>
+  - 到着影響: <airline.arrivalImpact>
+- 日程・集合影響: <scheduleImpact>
+- バス座席/グループ: <busSeating>
+- 装備・レンタルサイズ: 服のサイズ<gearSizes.top> ズボン<gearSizes.bottom> 靴<gearSizes.shoes> 身長<gearSizes.height_cm>cm 体重<gearSizes.weight_kg>kg
+- 別問番同行GRP: <otherGroup: name/inquiryNo（必要なら 同室=<roomType>）<status>>
