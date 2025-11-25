@@ -20,7 +20,7 @@ from openai import OpenAI  # type: ignore
 
 
 # モデル名は必要に応じて変更可
-DEFAULT_MODEL = "gpt-5.1-mini"
+DEFAULT_MODEL = "gpt-5-mini"
 
 client = OpenAI()
 
