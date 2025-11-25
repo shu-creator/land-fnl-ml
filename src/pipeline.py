@@ -12,7 +12,7 @@
 #     → 禁則ワードチェック (contains_ng_terms)
 #
 # 使い方:
-#   python -m src.pipeline input.txt
+#   python3 -m src.pipeline input.txt
 
 from __future__ import annotations
 
@@ -28,6 +28,42 @@ from .formatter import render_text
 from .safety import contains_ng_terms, find_all_ng_terms
 
 
+def _print_review_report(all_reviews: List[Dict[str, Any]]) -> None:
+    """
+    人間が読むためのレビュー結果を stderr にまとめて出力する。
+
+    仕様:
+    - パイプライン本体の出力(stdout)には混ぜない
+    - コース単位に errors / warnings を一覧表示
+    """
+    if not all_reviews:
+        return
+
+    sys.stderr.write("\n=== Semantic Review Report (for human check) ===\n")
+    for item in all_reviews:
+        course_no = item.get("courseNo", "UNKNOWN")
+        review = item.get("review", {}) or {}
+        ok = review.get("ok", True)
+        errors = review.get("errors") or []
+        warnings = review.get("warnings") or []
+
+        sys.stderr.write(f"\n[Course: {course_no}] ok = {ok}\n")
+
+        if errors:
+            sys.stderr.write("  Errors:\n")
+            for e in errors:
+                code = e.get("code", "")
+                msg = e.get("message", "")
+                sys.stderr.write(f"    - {code}: {msg}\n")
+
+        if warnings:
+            sys.stderr.write("  Warnings:\n")
+            for w in warnings:
+                code = w.get("code", "")
+                msg = w.get("message", "")
+                sys.stderr.write(f"    - {code}: {msg}\n")
+
+
 def process_text(raw: str) -> str:
     """
     生テキスト文字列から FNL 用の最終テキストを生成するメイン処理。
@@ -40,6 +76,7 @@ def process_text(raw: str) -> str:
     blocks = find_course_blocks(lines)
 
     all_courses: List[Dict[str, Any]] = []
+    all_reviews: List[Dict[str, Any]] = []
 
     # 各コースブロックごとに抽出〜検証
     for idx, block in enumerate(blocks):
@@ -66,7 +103,15 @@ def process_text(raw: str) -> str:
                 f"Semantic validation call failed for course {course_no}: {e}"
             ) from e
 
-        # review["ok"] が False の場合は警告として標準エラーに出す
+        # レビュー結果を集約（後で人間が読む用）
+        all_reviews.append(
+            {
+                "courseNo": course_no,
+                "review": review,
+            }
+        )
+
+        # ok=False の場合は警告のみ（処理は継続）
         if not review.get("ok", True):
             sys.stderr.write(
                 f"[WARN] Semantic validation not OK for course {course_no}:\n"
@@ -89,6 +134,9 @@ def process_text(raw: str) -> str:
             "NGワード（座席・保険・金銭など）が出力に含まれています。"
             f" 該当: {', '.join(set(hits))}"
         )
+
+    # レビュー結果を stderr にまとめて表示（本文とは分離）
+    _print_review_report(all_reviews)
 
     return text
 
