@@ -18,7 +18,6 @@ from typing import Dict, Any
 import json
 from openai import OpenAI  # type: ignore
 
-
 # モデル名は必要に応じて変更可
 DEFAULT_MODEL = "gpt-5-mini"
 
@@ -39,7 +38,12 @@ def build_validation_prompt(block: Dict[str, Any], extracted_json: Dict[str, Any
     json_text = json.dumps(extracted_json, ensure_ascii=False, indent=2)
 
     return f"""
-あなたは旅行会社の FNL 抽出結果の品質レビュアーです。
+あなたは FNL抽出結果の品質レビュアーです。
+
+目的:
+抽出結果JSONが「海外催行に必要な情報のみ」になっているかを確認し、
+必要に応じて ERR / WARN を返します。
+schema 構造はすでに Python で検証済みのため変更不要です。
 
 [入力1: 正規化済み原文（行番号付き）]
 {lines_text}
@@ -47,35 +51,51 @@ def build_validation_prompt(block: Dict[str, Any], extracted_json: Dict[str, Any
 [入力2: 抽出結果 JSON]
 {json_text}
 
-[レビュー観点]
-- JSONは既に基本スキーマに適合しています。構造そのものを壊す必要はありません。
-- 次の点を重点的に確認してください:
-  1. 座席・並び席・保険・返金・金銭・旅券・JR・社内進行の情報が JSON に紛れ込んでいないか。
-  2. 原文にハネムーン/入籍/記念日などの表現がある場合、celebration に反映されているか。
-  3. 医療・アレルギー情報が、medical または meal_allergy に正しく割り当てられているか。
-  4. 明らかに同じ内容の重複エントリがないか。
+[レビューのレイヤー]
 
-- 上記4点以外の観点については、新たなエラー・警告コードを追加しないでください。
-- 特に、敬称（例: "MR.", "MS."）が nameEN に含まれていても問題ありません。その点については警告やエラーを出さないでください。
+レイヤー0（致命的NG・必ずERR）
+- 禁則ワード（座席・並び席・金銭・返金・保険・旅券・JR・社内進行）が JSON に含まれていないか。
+- 国内移動（JR等）の情報が scheduleImpact 等に残っていないか。
+- optionalRQ / roomingRQ / airline / gearSizes に schema未定義の追加フィールドが紛れ込んでいないか。
 
-[出力形式]
-以下の JSON オブジェクトのみ出力してください。
+レイヤー1（現地運用の主要項目）
+- celebration:
+  原文にハネムーン、結婚記念日、入籍予定があれば反映されているか。
+- medical / meal_allergy / airline.meal:
+  原文にアレルギー・持病・乗り物酔い等がある場合、対応フィールドに入っているか。
+  単なる持参薬案内だけが medical に入っていないか。
+- optionalRQ:
+  原文に OP の RQ があるのに optionalRQ に無い／HKを採用している等は ERR。
+- roomingRQ:
+  RQ 以外（履歴・確定）が混ざっていないか。
+- airline:
+  飲食／搭乗支援／持込配慮／到着影響のみが入っているか。
+  座席指定が紛れ込んでいないか。
+- scheduleImpact:
+  現地集合などに関する重要情報は入っているか。
+  ※国内移動（JR等）はエラー。
+- 「不明」の使い方:
+  不明は date のみ許容。それ以外にあれば ERR。
+
+レイヤー2（品質向上のためのWARN）
+- joinType（合流／送迎／個人便）が必要なのに空。
+- gearSizes が必要なのに空。
+- otherGroup が必要なのに空。
+- 明らかな重複がある。
+
+[指示]
+
+- 上記レイヤー以外の観点で、新しい ERR/WARN を追加してはいけません。
+- 判断が迷う場合は WARN 側に倒してください。
+- 出力は次の JSON 形式のみ:
 
 {{
-  "ok": true or false,
+  "ok": true/false,
   "errors": [
-    {{
-      "code": "ERR_...",
-      "message": "人間が読んで理解できる説明",
-      "suggestedPatch": {{ "修正すべき概要" }}
-    }}
+    {{"code":"ERR_xxx", "message":"...", "suggestedPatch": {{...}}}}
   ],
   "warnings": [
-    {{
-      "code": "WARN_...",
-      "message": "軽微な注意点",
-      "suggestedPatch": {{ "必要なら簡易コメント" }}
-    }}
+    {{"code":"WARN_xxx", "message":"...", "suggestedPatch": {{...}}}}
   ]
 }}
 """.strip()
@@ -87,7 +107,7 @@ def validate_semantic_with_llm(
     model: str = DEFAULT_MODEL,
 ) -> Dict[str, Any]:
     """
-    LLM に意味検証を依頼し、レビュー結果を JSON として返す。
+    LLM に意味検証を依頼し、レビュー結果を返す。
     """
     prompt = build_validation_prompt(block, extracted_json)
 
