@@ -34,37 +34,51 @@ def normalize_course_structure(doc: dict) -> dict:
 
     - participants が course["period"] の中に入ってしまっている場合、
       course["participants"] に移動させる。
-    - course 配下に periodFrom / periodTo がある場合、
+    - course 配下に periodFrom / periodTo / periodStart / periodEnd /
+      startDate / endDate がある場合、
       period: {"start": ..., "end": ...} に正規化する。
     """
     courses = doc.get("courses", [])
     for course in courses:
-        # 1) period 配下に participants がいるパターンを補正（念のため残しておく）
+        # 1) period 配下に participants がいるパターンを補正（念のため）
         period = course.get("period")
         if isinstance(period, dict) and "participants" in period and "participants" not in course:
             course["participants"] = period.pop("participants")
 
-        # 2) periodFrom / periodTo → period.start / period.end に補正
-        period_from = course.pop("periodFrom", None)
-        period_to = course.pop("periodTo", None)
+        # 2) period の別名をまとめて拾う
+        # 優先順位: 既に period がある場合はそれを優先し、足りない方だけ補完する
+        period_obj = course.get("period") or {}
+        start_val = period_obj.get("start")
+        end_val = period_obj.get("end")
 
-        # まだ period が無ければ、新しく作る
-        if "period" not in course:
-            if period_from or period_to:
-                course["period"] = {
-                    "start": period_from or "",
-                    "end": period_to or "",
-                }
-        else:
-            # period が既にある場合は、足りない方だけ補完する
-            per = course["period"]
-            if period_from and not per.get("start"):
-                per["start"] = period_from
-            if period_to and not per.get("end"):
-                per["end"] = period_to
+        # いろいろな別名から start / end を拾う
+        alias_pairs = [
+            ("periodFrom", "periodTo"),
+            ("periodStart", "periodEnd"),
+            ("startDate", "endDate"),
+        ]
+
+        for start_key, end_key in alias_pairs:
+            s = course.get(start_key)
+            e = course.get(end_key)
+            if s and not start_val:
+                start_val = s
+            if e and not end_val:
+                end_val = e
+            # 使った別名は消しておく
+            if start_key in course:
+                course.pop(start_key, None)
+            if end_key in course:
+                course.pop(end_key, None)
+
+        # 何かしら start / end が取れていれば period をセット
+        if start_val or end_val:
+            course["period"] = {
+                "start": start_val or "",
+                "end": end_val or "",
+            }
 
     return doc
-
 def clean_optionalrq_status(doc: dict) -> dict:
     """
     optionalRQ の各要素から、スキーマに存在しない status フィールドを削除する。
