@@ -34,30 +34,34 @@ def normalize_course_structure(doc: dict) -> dict:
 
     - participants が course["period"] の中に入ってしまっている場合、
       course["participants"] に移動させる。
-    - course 配下に periodStart / periodEnd がある場合、
+    - course 配下に periodFrom / periodTo がある場合、
       period: {"start": ..., "end": ...} に正規化する。
     """
     courses = doc.get("courses", [])
     for course in courses:
-        # 1) period 配下に participants がいるパターンを補正
-        period = course.get("period") or {}
-        if "participants" in period and "participants" not in course:
+        # 1) period 配下に participants がいるパターンを補正（念のため残しておく）
+        period = course.get("period")
+        if isinstance(period, dict) and "participants" in period and "participants" not in course:
             course["participants"] = period.pop("participants")
 
-        # 2) periodStart / periodEnd → period.start / period.end に補正
-        period_start = course.get("periodStart")
-        period_end = course.get("periodEnd")
-        if "period" not in course and (period_start or period_end):
-            # どちらか一方しかないケースでも、とりあえずそのまま格納
-            course["period"] = {
-                "start": period_start or "",
-                "end": period_end or "",
-            }
-        # 補正後は余分なキーを削除しておく
-        if "periodStart" in course:
-            course.pop("periodStart", None)
-        if "periodEnd" in course:
-            course.pop("periodEnd", None)
+        # 2) periodFrom / periodTo → period.start / period.end に補正
+        period_from = course.pop("periodFrom", None)
+        period_to = course.pop("periodTo", None)
+
+        # まだ period が無ければ、新しく作る
+        if "period" not in course:
+            if period_from or period_to:
+                course["period"] = {
+                    "start": period_from or "",
+                    "end": period_to or "",
+                }
+        else:
+            # period が既にある場合は、足りない方だけ補完する
+            per = course["period"]
+            if period_from and not per.get("start"):
+                per["start"] = period_from
+            if period_to and not per.get("end"):
+                per["end"] = period_to
 
     return doc
 
