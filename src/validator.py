@@ -32,16 +32,32 @@ def normalize_course_structure(doc: dict) -> dict:
     """
     LLM の出力構造のゆがみを補正する。
 
-    例:
     - participants が course["period"] の中に入ってしまっている場合、
       course["participants"] に移動させる。
+    - course 配下に periodStart / periodEnd がある場合、
+      period: {"start": ..., "end": ...} に正規化する。
     """
     courses = doc.get("courses", [])
     for course in courses:
+        # 1) period 配下に participants がいるパターンを補正
         period = course.get("period") or {}
-        # period配下に participants がいて、course直下にない場合は上に移動
         if "participants" in period and "participants" not in course:
             course["participants"] = period.pop("participants")
+
+        # 2) periodStart / periodEnd → period.start / period.end に補正
+        period_start = course.get("periodStart")
+        period_end = course.get("periodEnd")
+        if "period" not in course and (period_start or period_end):
+            # どちらか一方しかないケースでも、とりあえずそのまま格納
+            course["period"] = {
+                "start": period_start or "",
+                "end": period_end or "",
+            }
+        # 補正後は余分なキーを削除しておく
+        if "periodStart" in course:
+            course.pop("periodStart", None)
+        if "periodEnd" in course:
+            course.pop("periodEnd", None)
 
     return doc
 
