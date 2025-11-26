@@ -28,6 +28,23 @@ def coerce_numeric_fields(doc: dict) -> dict:
 
     return doc
 
+def normalize_course_structure(doc: dict) -> dict:
+    """
+    LLM の出力構造のゆがみを補正する。
+
+    例:
+    - participants が course["period"] の中に入ってしまっている場合、
+      course["participants"] に移動させる。
+    """
+    courses = doc.get("courses", [])
+    for course in courses:
+        period = course.get("period") or {}
+        # period配下に participants がいて、course直下にない場合は上に移動
+        if "participants" in period and "participants" not in course:
+            course["participants"] = period.pop("participants")
+
+    return doc
+
 from jsonschema import Draft202012Validator, ValidationError
 
 BASE_DIR = pathlib.Path(__file__).resolve().parents[1]
@@ -46,8 +63,10 @@ def validate_schema(doc: dict) -> None:
     if not _schema or _validator is None:
         return
 
+    # 構造補正 → 数値フィールド補正
+    doc = normalize_course_structure(doc)
     doc = coerce_numeric_fields(doc)
-    
+
     _validator.validate(doc)
 
 
@@ -55,8 +74,9 @@ def is_schema_valid(doc: dict) -> Tuple[bool, Optional[str]]:
     if not _schema or _validator is None:
         return True, None
 
+    doc = normalize_course_structure(doc)
     doc = coerce_numeric_fields(doc)
-    
+
     try:
         _validator.validate(doc)
         return True, None
