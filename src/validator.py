@@ -175,6 +175,28 @@ def normalize_text_fields(doc: dict) -> dict:
     return doc
 
 
+def normalize_gear_sizes(doc: dict) -> dict:
+    """
+    gearSizes フィールドをスキーマに合わせて object に正規化する。
+
+    - gearSizes が list や None 等、dict 以外の型のときは {} に置き換える。
+      （装備サイズ情報なし、という扱い）
+    """
+    courses = doc.get("courses", [])
+    for course in courses:
+        participants = course.get("participants", []) or []
+        for p in participants:
+            if "gearSizes" not in p:
+                continue
+            gs = p.get("gearSizes")
+            # 期待通り dict ならそのまま
+            if isinstance(gs, dict):
+                continue
+            # list や str など dict 以外はすべて空オブジェクトに正規化
+            p["gearSizes"] = {}
+    return doc
+
+
 # スキーマの読み込みとバリデータ初期化
 try:
     _schema: dict = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
@@ -193,10 +215,11 @@ def validate_schema(doc: dict) -> None:
     if not _schema or _validator is None:
         return
 
-    # 構造補正 → OP status 削除 → 文字列フィールド正規化 → 数値フィールド補正
+    # 構造補正 → OP status 削除 → 文字列フィールド正規化 → gearSizes 正規化 → 数値フィールド補正
     doc = normalize_course_structure(doc)
     doc = clean_optionalrq_status(doc)
     doc = normalize_text_fields(doc)
+    doc = normalize_gear_sizes(doc)
     doc = coerce_numeric_fields(doc)
 
     _validator.validate(doc)
@@ -213,6 +236,7 @@ def is_schema_valid(doc: dict) -> Tuple[bool, Optional[str]]:
     doc = normalize_course_structure(doc)
     doc = clean_optionalrq_status(doc)
     doc = normalize_text_fields(doc)
+    doc = normalize_gear_sizes(doc)
     doc = coerce_numeric_fields(doc)
 
     try:
