@@ -107,19 +107,42 @@ def clean_optionalrq_status(doc: dict) -> dict:
     return doc
 
 
+def _to_str(val: Any) -> str:
+    """
+    list などをスキーマに合わせた string に正規化するためのヘルパー。
+    """
+    if isinstance(val, list):
+        # 空リスト → 空文字、値があれば " / " で連結
+        return " / ".join(str(v) for v in val if v) or ""
+    if val is None:
+        return ""
+    return str(val)
+
+
 def normalize_text_fields(doc: dict) -> dict:
-    ...
+    """
+    LLM が list などで返してくる文字列フィールドを、スキーマに合わせて正規化する。
+
+    - meal_allergy, medical, scheduleImpact は string に統一
+      - list の場合は " / " で join
+      - [] や None の場合は ""
+    - airline は schema のキー (meal, assist, carryOn, arrivalImpact) に揃える
+      - assistance / support → assist
+      - baggage / luggage → carryOn
+      - impact → arrivalImpact
+      - 各値は string に統一（list は " / " で join）
+    """
     courses = doc.get("courses", [])
     for course in courses:
         participants = course.get("participants", []) or []
         for p in participants:
             # participant直下の文字列フィールド
             if "meal_allergy" in p:
-                p["meal_allergy"] = to_str(p.get("meal_allergy"))
+                p["meal_allergy"] = _to_str(p.get("meal_allergy"))
             if "medical" in p:
-                p["medical"] = to_str(p.get("medical"))
+                p["medical"] = _to_str(p.get("medical"))
             if "scheduleImpact" in p:
-                p["scheduleImpact"] = to_str(p.get("scheduleImpact"))
+                p["scheduleImpact"] = _to_str(p.get("scheduleImpact"))
 
             # airline オブジェクト
             al = p.get("airline")
@@ -139,18 +162,18 @@ def normalize_text_fields(doc: dict) -> dict:
                     if src in al and dst not in al:
                         al[dst] = al.pop(src)
                     else:
-                        # src があって dst もある場合や、不要な場合は消す
                         al.pop(src, None)
 
                 # allowed 以外のキーは削除しつつ、値を string に統一
                 allowed = {"meal", "assist", "carryOn", "arrivalImpact"}
                 for key in list(al.keys()):
                     if key in allowed:
-                        al[key] = to_str(al.get(key))
+                        al[key] = _to_str(al.get(key))
                     else:
                         al.pop(key, None)
 
     return doc
+
 
 # スキーマの読み込みとバリデータ初期化
 try:
