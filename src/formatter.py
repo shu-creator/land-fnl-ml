@@ -11,13 +11,13 @@ def _safe(v: Any) -> str:
 
 
 def _join_nonempty(sep: str, parts: List[str]) -> str:
-    """空文字を除外して結合."""
+    """空文字を除外して結合。"""
     return sep.join([p for p in parts if p])
 
 
 def render_text(doc: Dict[str, Any]) -> str:
     """
-    EXTRACT_SCHEMA.json に従う JSON を、人間向けテキストとして整形する。
+    EXTRACT_SCHEMA.json に従う JSON を人間向けテキストとして整形する。
     fields が空ならその行は出力しない。
     日付は EXTRACT_SCHEMA 側で検証されている前提。
 
@@ -36,7 +36,7 @@ def render_text(doc: Dict[str, Any]) -> str:
         out_lines.append("ツアー情報:")
         period = c.get("period", {})
         out_lines.append(
-            f"- コースNo: {c.get('courseNo','')} / 期間: "
+            f"- コースNo: {c.get('courseNo', '')} / 期間: "
             f"{_safe(period.get('start'))}–{_safe(period.get('end'))}"
         )
         out_lines.append("")
@@ -51,8 +51,8 @@ def render_text(doc: Dict[str, Any]) -> str:
         for p in participants:
             # 見出し
             out_lines.append(
-                f"{c.get('courseNo','')} No.{p.get('no','')} "
-                f"{p.get('nameJP','')} / {p.get('nameEN','')}（問番:{p.get('inquiryNo','')}）"
+                f"{c.get('courseNo', '')} No.{p.get('no', '')} "
+                f"{p.get('nameJP', '')} / {p.get('nameEN', '')}（問番:{p.get('inquiryNo', '')}）"
             )
 
             # 参加形態 (L/O)
@@ -81,7 +81,7 @@ def render_text(doc: Dict[str, Any]) -> str:
                     date = op.get("date") or "不明"
                     pax = op.get("pax") or ""
                     out_lines.append(
-                        f"- オプショナル: {op.get('name','')} / RQ / {date} / {pax}名"
+                        f"- オプショナル: {op.get('name', '')} / RQ / {date} / {pax}名"
                     )
 
             # ハネムーン・入籍・記念日など
@@ -114,13 +114,15 @@ def render_text(doc: Dict[str, Any]) -> str:
             if p.get("scheduleImpact"):
                 out_lines.append(f"- 日程・集合影響: {p['scheduleImpact']}")
 
-            # バス座席/グループ
+            # バスグループ（※「座席」という語は使わない）
             if p.get("busSeating"):
-                out_lines.append(f"- バス座席/グループ: {p['busSeating']}")
+                # 将来的に「バス班・グループ」用として使う前提。
+                # 座席位置（前方／後方／窓側／通路側）そのものは抽出しない方針。
+                out_lines.append(f"- バスグループ: {p['busSeating']}")
 
             # 装備サイズ
             gs = p.get("gearSizes") or {}
-            segs = []
+            segs: List[str] = []
             if gs.get("top"):
                 segs.append(f"服のサイズ{gs['top']}")
             if gs.get("bottom"):
@@ -143,7 +145,7 @@ def render_text(doc: Dict[str, Any]) -> str:
                     room = f" 同室={og['roomType']}"
                 status = og.get("status") or ""
                 out_lines.append(
-                    f"- 別問番同行GRP: {og.get('name','')}/{og.get('inquiryNo','')}"
+                    f"- 別問番同行GRP: {og.get('name', '')}/{og.get('inquiryNo', '')}"
                     f"{room} {status}"
                 )
 
