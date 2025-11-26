@@ -108,26 +108,7 @@ def clean_optionalrq_status(doc: dict) -> dict:
 
 
 def normalize_text_fields(doc: dict) -> dict:
-    """
-    LLM が list などで返してくる文字列フィールドを、スキーマに合わせて正規化する。
-
-    - meal_allergy, medical, scheduleImpact は string に統一
-      - list の場合は " / " で join
-      - [] や None の場合は ""
-    - airline は schema のキー (meal, assist, carryOn, arrivalImpact) に揃える
-      - support → assist
-      - luggage → carryOn
-      - 各値は string に統一（list は " / " で join）
-    """
-
-    def to_str(val: Any) -> str:
-        if isinstance(val, list):
-            # 空リスト → 空文字、値があれば " / " で連結
-            return " / ".join(str(v) for v in val if v) or ""
-        if val is None:
-            return ""
-        return str(val)
-
+    ...
     courses = doc.get("courses", [])
     for course in courses:
         participants = course.get("participants", []) or []
@@ -143,25 +124,33 @@ def normalize_text_fields(doc: dict) -> dict:
             # airline オブジェクト
             al = p.get("airline")
             if isinstance(al, dict):
-                # LLM 側のキー（support / luggage）を schema のキーにマッピング
-                # support → assist
-                if "support" in al and "assist" not in al:
-                    al["assist"] = al.pop("support")
-                else:
-                    al.pop("support", None)
-                # luggage → carryOn
-                if "luggage" in al and "carryOn" not in al:
-                    al["carryOn"] = al.pop("luggage")
-                else:
-                    al.pop("luggage", None)
+                # LLM 側のキーを schema のキーにマッピング
+                # assistance / support → assist
+                # baggage / luggage → carryOn
+                # impact → arrivalImpact
+                key_map = {
+                    "assistance": "assist",
+                    "support": "assist",
+                    "baggage": "carryOn",
+                    "luggage": "carryOn",
+                    "impact": "arrivalImpact",
+                }
+                for src, dst in key_map.items():
+                    if src in al and dst not in al:
+                        al[dst] = al.pop(src)
+                    else:
+                        # src があって dst もある場合や、不要な場合は消す
+                        al.pop(src, None)
 
-                # 各フィールドを string に統一
-                for key in ["meal", "assist", "carryOn", "arrivalImpact"]:
-                    if key in al:
+                # allowed 以外のキーは削除しつつ、値を string に統一
+                allowed = {"meal", "assist", "carryOn", "arrivalImpact"}
+                for key in list(al.keys()):
+                    if key in allowed:
                         al[key] = to_str(al.get(key))
+                    else:
+                        al.pop(key, None)
 
     return doc
-
 
 # スキーマの読み込みとバリデータ初期化
 try:
