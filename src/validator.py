@@ -5,6 +5,12 @@ import json
 import pathlib
 from typing import Any, Optional, Tuple
 
+from jsonschema import Draft202012Validator, ValidationError
+
+BASE_DIR = pathlib.Path(__file__).resolve().parents[1]
+SCHEMA_PATH = BASE_DIR / "pack" / "EXTRACT_SCHEMA.json"
+
+
 def coerce_numeric_fields(doc: dict) -> dict:
     """
     LLM が文字列で返しがちな数値フィールドを、可能なら int に変換する。
@@ -13,7 +19,7 @@ def coerce_numeric_fields(doc: dict) -> dict:
     """
     courses = doc.get("courses", [])
     for course in courses:
-        participants = course.get("participants", [])
+        participants = course.get("participants", []) or []
         for p in participants:
             # no: "01" → 1
             no = p.get("no")
@@ -27,6 +33,7 @@ def coerce_numeric_fields(doc: dict) -> dict:
                     op["pax"] = int(pax)
 
     return doc
+
 
 def normalize_course_structure(doc: dict) -> dict:
     """
@@ -79,6 +86,8 @@ def normalize_course_structure(doc: dict) -> dict:
             }
 
     return doc
+
+
 def clean_optionalrq_status(doc: dict) -> dict:
     """
     optionalRQ の各要素から、スキーマに存在しない status フィールドを削除する。
@@ -96,12 +105,65 @@ def clean_optionalrq_status(doc: dict) -> dict:
                 if isinstance(op, dict) and "status" in op:
                     op.pop("status", None)
     return doc
-    
-from jsonschema import Draft202012Validator, ValidationError
 
-BASE_DIR = pathlib.Path(__file__).resolve().parents[1]
-SCHEMA_PATH = BASE_DIR / "pack" / "EXTRACT_SCHEMA.json"
 
+def normalize_text_fields(doc: dict) -> dict:
+    """
+    LLM が list などで返してくる文字列フィールドを、スキーマに合わせて正規化する。
+
+    - meal_allergy, medical, scheduleImpact は string に統一
+      - list の場合は " / " で join
+      - [] や None の場合は ""
+    - airline は schema のキー (meal, assist, carryOn, arrivalImpact) に揃える
+      - support → assist
+      - luggage → carryOn
+      - 各値は string に統一（list は " / " で join）
+    """
+
+    def to_str(val: Any) -> str:
+        if isinstance(val, list):
+            # 空リスト → 空文字、値があれば " / " で連結
+            return " / ".join(str(v) for v in val if v) or ""
+        if val is None:
+            return ""
+        return str(val)
+
+    courses = doc.get("courses", [])
+    for course in courses:
+        participants = course.get("participants", []) or []
+        for p in participants:
+            # participant直下の文字列フィールド
+            if "meal_allergy" in p:
+                p["meal_allergy"] = to_str(p.get("meal_allergy"))
+            if "medical" in p:
+                p["medical"] = to_str(p.get("medical"))
+            if "scheduleImpact" in p:
+                p["scheduleImpact"] = to_str(p.get("scheduleImpact"))
+
+            # airline オブジェクト
+            al = p.get("airline")
+            if isinstance(al, dict):
+                # LLM 側のキー（support / luggage）を schema のキーにマッピング
+                # support → assist
+                if "support" in al and "assist" not in al:
+                    al["assist"] = al.pop("support")
+                else:
+                    al.pop("support", None)
+                # luggage → carryOn
+                if "luggage" in al and "carryOn" not in al:
+                    al["carryOn"] = al.pop("luggage")
+                else:
+                    al.pop("luggage", None)
+
+                # 各フィールドを string に統一
+                for key in ["meal", "assist", "carryOn", "arrivalImpact"]:
+                    if key in al:
+                        al[key] = to_str(al.get(key))
+
+    return doc
+
+
+# スキーマの読み込みとバリデータ初期化
 try:
     _schema: dict = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
 except FileNotFoundError:
@@ -112,23 +174,33 @@ else:
 
 
 def validate_schema(doc: dict) -> None:
+    """
+    EXTRACT_SCHEMA.json による機械的な検証を行う。
+    スキーマが未ロード（_schema が空）の場合は何もしない。
+    """
     if not _schema or _validator is None:
         return
 
-    # 構造補正 → OP status 削除 → 数値フィールド補正
+    # 構造補正 → OP status 削除 → 文字列フィールド正規化 → 数値フィールド補正
     doc = normalize_course_structure(doc)
     doc = clean_optionalrq_status(doc)
+    doc = normalize_text_fields(doc)
     doc = coerce_numeric_fields(doc)
 
     _validator.validate(doc)
 
 
 def is_schema_valid(doc: dict) -> Tuple[bool, Optional[str]]:
+    """
+    スキーマに適合するかをチェックし、(bool, エラーメッセージ) を返す。
+    スキーマ未設定時は (True, None) を返す。
+    """
     if not _schema or _validator is None:
         return True, None
 
     doc = normalize_course_structure(doc)
     doc = clean_optionalrq_status(doc)
+    doc = normalize_text_fields(doc)
     doc = coerce_numeric_fields(doc)
 
     try:
